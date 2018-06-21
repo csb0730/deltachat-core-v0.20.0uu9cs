@@ -245,7 +245,8 @@ unsigned    pgp_rsa_generate_keypair(pgp_key_t *,
 			const char *,
 			const char *,
             const uint8_t *,
-            const size_t);
+            const size_t,
+            void* mailbox);
 
 int pgp_dsa_size(const pgp_dsa_pubkey_t *);
 pgp_dsa_sig_t *pgp_dsa_sign(uint8_t *, unsigned,

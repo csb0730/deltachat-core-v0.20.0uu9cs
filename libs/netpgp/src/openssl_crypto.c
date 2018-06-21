@@ -55,6 +55,9 @@
 #include <sys/cdefs.h>
 #endif
 
+#include <sys/times.h>
+void mrmailbox_log_info(void* mailbox, int code, const char* msg, ...);
+
 #if defined(__NetBSD__)
 __COPYRIGHT("@(#) Copyright (c) 2009 The NetBSD Foundation, Inc. All rights reserved.");
 __RCSID("$NetBSD$");
@@ -719,7 +722,8 @@ pgp_rsa_generate_keypair(pgp_key_t *keydata,
 			const char *hashalg,
 			const char *cipher,
             const uint8_t *passphrase,
-            const size_t pplen)
+            const size_t pplen,
+            void* mailbox)
 {
 	pgp_seckey_t *seckey;
 	RSA            *rsa;
@@ -754,7 +758,21 @@ pgp_rsa_generate_keypair(pgp_key_t *keydata,
 	*/
 
 	rsa = RSA_new();
+
+	struct tms tbuf1;
+	struct tms tbuf2;
+	times(&tbuf1);
+
     res = RSA_generate_key_ex(rsa, numbits, exp, NULL);
+
+	times(&tbuf2);
+
+	mrmailbox_log_info(mailbox, 0, "utime=%i, stime=%i, cutime=%i, cstime=%i",
+		tbuf2.tms_utime-tbuf1.tms_utime,
+		tbuf2.tms_stime-tbuf1.tms_stime,
+		tbuf2.tms_cutime-tbuf1.tms_cutime,
+		tbuf2.tms_cstime-tbuf1.tms_cstime
+	);
 
     BN_free(exp);
 

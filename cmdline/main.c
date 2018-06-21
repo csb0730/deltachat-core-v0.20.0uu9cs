@@ -228,7 +228,7 @@ int main(int argc, char ** argv)
 		printf("ERROR: Bad arguments\n");
 	}
 
-	s_do_log_info = 0;
+	s_do_log_info = 1;
 	stress_functions(mailbox);
 	s_do_log_info = 1;
 
