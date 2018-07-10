@@ -508,6 +508,27 @@ void dc_job_add(dc_context_t* context, int action, int foreign_id, const char* p
 }
 
 
+static void dc_job_update(dc_context_t* context, const dc_job_t* job)
+{
+	sqlite3_stmt* update_stmt = dc_sqlite3_prepare(context->sql,
+		"UPDATE jobs SET desired_timestamp=0, param=? WHERE id=?;");
+	sqlite3_bind_text (update_stmt, 1, job->param->packed, -1, SQLITE_STATIC);
+	sqlite3_bind_int  (update_stmt, 2, job->job_id);
+	sqlite3_step(update_stmt);
+	sqlite3_finalize(update_stmt);
+}
+
+
+static void dc_job_delete(dc_context_t* context, const dc_job_t* job)
+{
+	sqlite3_stmt* delete_stmt = dc_sqlite3_prepare(context->sql,
+		"DELETE FROM jobs WHERE id=?;");
+	sqlite3_bind_int(delete_stmt, 1, job->job_id);
+	sqlite3_step(delete_stmt);
+	sqlite3_finalize(delete_stmt);
+}
+
+
 void dc_job_try_again_later(dc_job_t* job, int try_again)
 {
 	if (job==NULL) {
@@ -602,35 +623,28 @@ static void dc_job_perform(dc_context_t* context, int thread)
 		}
 		else if (job.try_again==DC_AT_ONCE || job.try_again==DC_STANDARD_DELAY)
 		{
-			int tries = dc_param_get_int(job.param, DC_PARAM_TIMES, 0) + 1;
-			dc_param_set_int(job.param, DC_PARAM_TIMES, tries);
+			int is_online = dc_is_online(context)? 1 : 0;
+			int tries_while_online = dc_param_get_int(job.param, DC_PARAM_TIMES, 0) + is_online;
 
-			sqlite3_stmt* update_stmt = dc_sqlite3_prepare(context->sql,
-				"UPDATE jobs SET desired_timestamp=0, param=? WHERE id=?;");
-			sqlite3_bind_text (update_stmt, 1, job.param->packed, -1, SQLITE_STATIC);
-			sqlite3_bind_int  (update_stmt, 2, job.job_id);
-			sqlite3_step(update_stmt);
-			sqlite3_finalize(update_stmt);
-			dc_log_info(context, 0, "%s-job #%i not succeeded, trying again asap.", THREAD_STR, (int)job.job_id);
+			if( tries_while_online < 3 ) {
+				dc_param_set_int(job.param, DC_PARAM_TIMES, tries_while_online);
+				dc_job_update(context, &job);
+				dc_log_info(context, 0, "%s-job #%i not succeeded, trying again asap.", THREAD_STR, (int)job.job_id);
 
-			// if the job did not succeeded AND this is a smtp-job AND we're online, try over after a mini-delay of one second.
-			// if we're not online, the ui calls interrupt idle as soon as we're online again.
-			// if nothing of this happens, after DC_SMTP_IDLE_SEC (60) we try again.
-			if (thread==DC_SMTP_THREAD
-			 && dc_is_online(context))
-			{
-				pthread_mutex_lock(&context->smtpidle_condmutex);
-					context->perform_smtp_jobs_needed = DC_JOBS_NEEDED_AVOID_DOS;
-				pthread_mutex_unlock(&context->smtpidle_condmutex);
+				if (thread==DC_SMTP_THREAD && is_online) {
+					pthread_mutex_lock(&context->smtpidle_condmutex);
+						context->perform_smtp_jobs_needed = DC_JOBS_NEEDED_AVOID_DOS; // avoid heavy load and add a small delay
+					pthread_mutex_unlock(&context->smtpidle_condmutex);
+				} // else if we're offline, the ui calls interrupt idle as soon as we're online again.
+			}
+			else {
+				// TODO: mark message as error
+				dc_job_delete(context, &job);
 			}
 		}
 		else
 		{
-			sqlite3_stmt* delete_stmt = dc_sqlite3_prepare(context->sql,
-				"DELETE FROM jobs WHERE id=?;");
-			sqlite3_bind_int(delete_stmt, 1, job.job_id);
-			sqlite3_step(delete_stmt);
-			sqlite3_finalize(delete_stmt);
+			dc_job_delete(context, &job);
 		}
 	}
 
