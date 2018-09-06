@@ -36,6 +36,12 @@
 #include "dc_job.h"
 
 
+/**
+ * @name Import/Export
+ * @{
+ */
+
+
 /*******************************************************************************
  * Autocrypt Key Transfer
  ******************************************************************************/
@@ -492,7 +498,7 @@ char* dc_initiate_key_transfer(dc_context_t* context)
 		goto cleanup;
 	}
 
-	msg = dc_msg_new();
+	msg = dc_msg_new(context);
 	msg->type = DC_MSG_FILE;
 	dc_param_set    (msg->param, DC_PARAM_FILE,              setup_file_name);
 	dc_param_set    (msg->param, DC_PARAM_MIMETYPE,          "application/autocrypt-setup");
@@ -501,7 +507,7 @@ char* dc_initiate_key_transfer(dc_context_t* context)
 
 	CHECK_EXIT
 
-	if ((msg_id = dc_send_msg_object(context, chat_id, msg))==0) {
+	if ((msg_id = dc_send_msg(context, chat_id, msg))==0) {
 		goto cleanup;
 	}
 
@@ -1083,6 +1089,7 @@ static int import_backup(dc_context_t* context, const char* backup_to_import)
 	stmt = 0;
 
 	dc_sqlite3_execute(context->sql, "DROP TABLE backup_blobs;");
+	dc_sqlite3_execute(context->sql, "END TRANSACTION;"); //cs
 	dc_sqlite3_execute(context->sql, "VACUUM;");
 
 	/* rewrite references to the blobs */
@@ -1421,3 +1428,8 @@ cleanup:
 	dc_loginparam_unref(loginparam);
 	return success;
 }
+
+
+/**
+ * @}
+ */
