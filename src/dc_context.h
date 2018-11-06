@@ -91,7 +91,7 @@ struct _dc_context
 
 	int              e2ee_enabled;          /**< Internal */
 
-	#define          DC_LOG_RINGBUF_SIZE 200
+	#define          DC_LOG_RINGBUF_SIZE 800 /* 200->800 */
 	pthread_mutex_t  log_ringbuf_critical;  /**< Internal */
 	char*            log_ringbuf[DC_LOG_RINGBUF_SIZE];
 	                                          /**< Internal */
@@ -126,6 +126,14 @@ void            dc_receive_imf                             (dc_context_t*, const
 
 #define         DC_BAK_PREFIX                "delta-chat"
 #define         DC_BAK_SUFFIX                "bak"
+
+
+// attachments of 25 mb brutto should work on the majority of providers
+// (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
+// as an upper limit, we double the size; the core won't send messages larger than this
+// to get the netto sizes, we substract 1 mb header-overhead and the base64-overhead.
+#define DC_MSGSIZE_MAX_RECOMMENDED  ((24*1024*1024)/4*3)
+#define DC_MSGSIZE_UPPER_LIMIT      ((49*1024*1024)/4*3)
 
 
 /* library private: end-to-end-encryption */
